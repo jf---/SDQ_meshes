@@ -53,8 +53,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${spectra_SOURCE_DIR}/include
 set(CMAKE_CXX_LINK_FLAGS "-framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -framework Accelerate -framework GLUT ")
 
 
-# ------------- set the value in DATA_PATH 
-set(DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data/ CACHE PATH "location of data")
+# ------------- set the value in DATA_PATH
+set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data/")
 target_compile_definitions(np3dp-v2 PUBLIC "-DDATA_PATH=\"${DATA_PATH}\"")
 
 igl_copy_dll(${PROJECT_NAME})
