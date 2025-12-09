@@ -73,7 +73,7 @@ public:
 	void deserialize(bool do_setup);
 
 	// --- Streamlines
-	void VectorField::streamlines(const VectorXcd& vf, const std::string& output_filename, MatrixXd& P1, MatrixXd& P2);
+	void streamlines(const VectorXcd& vf, const std::string& output_filename, MatrixXd& P1, MatrixXd& P2);
 	void draw_streamlines_of_U(MatrixXd& P1_u, MatrixXd& P2_u, MatrixXd& P1_v, MatrixXd& P2_v);
 	int streamlines_iterations = 50;
 	double streamlines_dist_ratio = 2.0;

@@ -82,7 +82,8 @@ bool Gui::mouse_down(igl::opengl::glfw::Viewer& viewer, int button, int modifier
 				int& fi = sel.selected_fi;
                 fi = np3dp->quad_mesh.TF[triangle_fid];
                 cout << "selected face index = " << fi << endl << "face vertices : "; for (int k = 0; k < np3dp->quad_mesh.D[fi]; ++k) cout << np3dp->quad_mesh.F(fi, k) << " "; cout << endl;
-            	if (Strips::get_strip_from_fi(np3dp->quad_mesh.D, np3dp->quad_mesh.F, np3dp->quad_mesh.boundaryFaces, np3dp->quad_mesh.Emap, fi, sel.selected_strip_direction, sel.selected_strip, sel.selected_strip_vis, sel.strip_is_closed, vector<int>(), sel.selected_strip_fis)) {
+            	vector<int> unused_strip_eis;
+            	if (Strips::get_strip_from_fi(np3dp->quad_mesh.D, np3dp->quad_mesh.F, np3dp->quad_mesh.boundaryFaces, np3dp->quad_mesh.Emap, fi, sel.selected_strip_direction, sel.selected_strip, sel.selected_strip_vis, sel.strip_is_closed, unused_strip_eis, sel.selected_strip_fis)) {
                     cout << "Traced strip with " << sel.selected_strip.sum() << " faces. Strip is closed : " << sel.strip_is_closed << endl;
                     cout << "Press SPACE to flip the strip direction" << endl;
                     if (mark_helper_strips_viewer_index >= 0) viewer.data_list[mark_helper_strips_viewer_index].clear();
@@ -258,7 +259,8 @@ bool Gui::key_down(igl::opengl::glfw::Viewer& viewer, unsigned char key, int mod
         if (strip_selection_is_on && np3dp->has_quad_mesh) {
             np3dp->quad_mesh.selection.selected_strip_direction = int(!bool(np3dp->quad_mesh.selection.selected_strip_direction)); // flip selected strip direction
             cout << "Changed the selected_strip_direction to : " << np3dp->quad_mesh.selection.selected_strip_direction << endl;
-            if (Strips::get_strip_from_fi(np3dp->quad_mesh.D, np3dp->quad_mesh.F, np3dp->quad_mesh.boundaryFaces, np3dp->quad_mesh.Emap, np3dp->quad_mesh.selection.selected_fi, np3dp->quad_mesh.selection.selected_strip_direction, np3dp->quad_mesh.selection.selected_strip, np3dp->quad_mesh.selection.selected_strip_vis, np3dp->quad_mesh.selection.strip_is_closed, vector<int>(), vector<int>())) {
+            vector<int> unused_eis2, unused_fis2;
+            if (Strips::get_strip_from_fi(np3dp->quad_mesh.D, np3dp->quad_mesh.F, np3dp->quad_mesh.boundaryFaces, np3dp->quad_mesh.Emap, np3dp->quad_mesh.selection.selected_fi, np3dp->quad_mesh.selection.selected_strip_direction, np3dp->quad_mesh.selection.selected_strip, np3dp->quad_mesh.selection.selected_strip_vis, np3dp->quad_mesh.selection.strip_is_closed, unused_eis2, unused_fis2)) {
                 cout << "Traced strip with " << np3dp->quad_mesh.selection.selected_strip.sum() << " faces. Strip is closed : " << np3dp->quad_mesh.selection.strip_is_closed << endl;
                 if (mark_helper_strips_viewer_index >=0) viewer.data_list[mark_helper_strips_viewer_index].clear();
             	display_selected_strip_data();
@@ -2075,8 +2077,10 @@ void Gui::draw_menu_boxes()
 						vector<bool> strips_are_closed;
 						vector<vector<int>> eis, fis;
 
+						MatrixXi unused_FtoS;
+						vector<vector<set<int>>> unused_VtoS;
 						Strips::get_all_strips(piece.V, piece.F, piece.D, piece.originalBndryFaces,
-							piece.Emap, strips, strips_directions, strips_vis, strips_are_closed, eis, fis, MatrixXi(), vector<vector<set<int>>>());
+							piece.Emap, strips, strips_directions, strips_vis, strips_are_closed, eis, fis, unused_FtoS, unused_VtoS);
 						VectorXi strip_sums = strips.rowwise().sum();
 
 						Helpers::write_matrix_to_txt(strips, Helpers::get_filename(DATA_PATH + np3dp->output_folder, "piece_strips", ID, "txt"));

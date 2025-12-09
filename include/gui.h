@@ -11,7 +11,7 @@
 #include <igl/opengl/glfw/imgui/ImGuiPlugin.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/opengl/glfw/imgui/ImGuiHelpers.h>
-
+#include <igl/parula.h>
 
 #include "Np3dpContext.hpp"
 #include "vector_field.h"

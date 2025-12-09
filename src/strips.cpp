@@ -483,8 +483,9 @@ int Strips::get_all_counterstrip_sequences_between_two_vertices(const Np3dpConte
 
     // --- expand green edges from vj
     VectorXi C;
+    vector<int> passed_vis_empty;
     for (int he : green_halfedges_vj)
-		QuadMesh::expand_cutting_from_he(he, C, vector<int>(), q.EH.rows(), q.HE, q.HV, q.nextH, q.twinH, q.vertexDegree, q.boundaryVertices, false, true);
+		QuadMesh::expand_cutting_from_he(he, C, passed_vis_empty, q.EH.rows(), q.HE, q.HV, q.nextH, q.twinH, q.vertexDegree, q.boundaryVertices, false, true);
 
     // --- walk from each outgoing halfedge until you reach: (a) a boundary, (b) a singularity, (c) an edge with C[ei]=1
     vector<bool> to_remove(blue_halfedges_vi.size(), true);

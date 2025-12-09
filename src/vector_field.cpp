@@ -8,6 +8,9 @@
 #include <igl/edge_topology.h>
 #include <igl/massmatrix.h>
 #include <Eigen/SparseCholesky>
+#include <Spectra/SymGEigsShiftSolver.h>
+#include <Spectra/MatOp/SymShiftInvert.h>
+#include <Spectra/MatOp/SparseSymMatProd.h>
 #include <directional/directional_viewer.h>
 #include <directional/principal_matching.h>
 #include <directional/power_field.h>
@@ -18,7 +21,6 @@
 #include <directional/integrate.h>
 #include <directional/write_raw_field.h>
 #include <directional/write_matching.h>
-#include <igl/matlab/matlabinterface.h>
 #include <igl/false_barycentric_subdivision.h>
 #include <directional/power_to_raw.h>
 
@@ -290,96 +292,35 @@ void VectorField::setup()
 		E2f.setFromTriplets(E2fTriplets.begin(), E2fTriplets.end());
 
 
-		// --- solve using igl
-		/*
-		bool success = igl::eigs(E2f, M2f, 1, igl::EIGS_TYPE_SM, EigVs, S); // extract the first eigenvector and eigenvalue
-		if (!success) {
-			cerr << "Attention! igl::eigs did not converge. Setting default dt = " << dt << endl;
-		}
-		else {
-			double smallest_eigen_val = S[0];
-			dt = 1.0/smallest_eigen_val;
-			cout << "Smallest eigenvalue = " << smallest_eigen_val << " , dt = " << dt << endl;
-		}*/
-
-
-		// --- solve using spectra
-		/*// https://spectralib.org/doc/classspectra_1_1symgeigsshiftsolver_3_01optype_00_01boptype_00_01geigsmode_1_1shiftinvert_01_4
-		// Construct matrix operation objects using the wrapper classes
-		// We are going to solve the generalized eigenvalue problem
-		//     A * x = lambda * B * x,
-		// where A is symmetric and B is positive definite
-
-		SparseMatrix<double>& A = E2f;
-		SparseMatrix<double>& B = M2f;
-		using OpType = Spectra::SymShiftInvert<double, Eigen::Sparse, Eigen::Sparse>;
-		using BOpType = Spectra::SparseSymMatProd<double>;
-		OpType op(A, B);
-		BOpType Bop(B);
-
-		//Helpers::write_to_matlab_format(A, DATA_PATH + np3dp->output_folder, "A");
-		//Helpers::write_to_matlab_format(B, DATA_PATH + np3dp->output_folder, "B");
-
-		// Construct generalized eigen solver object, seeking (three) generalized
-		// eigenvalues that are closest to zero. This is equivalent to specifying
-		// a shift sigma = 0.0 combined with the SortRule::LargestMagn selection rule
-		Spectra::SymGEigsShiftSolver<OpType, BOpType, Spectra::GEigsMode::ShiftInvert> geigs(op, Bop, 1, 5, 1e-8); // op, Bop, 3, 6, -1e-6
-
-		// Initialize and compute
-		geigs.init();
-		int nconv = geigs.compute(Spectra::SortRule::LargestMagn);
-
-		// Retrieve results
-		Eigen::VectorXd evalues;
-		//Eigen::MatrixXd evecs;
-		if (geigs.info() == Spectra::CompInfo::Successful)
+		// --- solve using Spectra: find smallest eigenvalues of generalized problem E2f * x = lambda * M2f * x
 		{
-			evalues = geigs.eigenvalues();
-			//evecs = geigs.eigenvectors();
+			using OpType = Spectra::SymShiftInvert<double, Eigen::Sparse, Eigen::Sparse>;
+			using BOpType = Spectra::SparseSymMatProd<double>;
+			OpType op(E2f, M2f);
+			BOpType Bop(M2f);
 
-			std::cout << "Number of converged generalized eigenvalues: " << nconv << std::endl;
-			std::cout << "Generalized eigenvalues: " << evalues << std::endl;
-			//std::cout << "Generalized eigenvectors found:\n" << evecs.topRows(10) << std::endl;
+			// Shift-invert mode with sigma=0 finds eigenvalues closest to 0
+			constexpr int nev = 5;  // number of eigenvalues to compute
+			constexpr int ncv = 15; // convergence speed param (rule of thumb: 2-3x nev)
+			Spectra::SymGEigsShiftSolver<OpType, BOpType, Spectra::GEigsMode::ShiftInvert> solver(op, Bop, nev, ncv, 0.0);
+
+			solver.init();
+			int nconv = solver.compute(Spectra::SortRule::LargestMagn);
+
+			if (solver.info() == Spectra::CompInfo::Successful) {
+				Eigen::VectorXd evalues = solver.eigenvalues();
+				// Find first non-trivial eigenvalue (skip near-zero ones)
+				for (int i = 0; i < evalues.size(); ++i) {
+					if (evalues(i) > 1e-10) {
+						dt = 1.0 / evalues(i);
+						cout << "Smallest eigenvalue = " << evalues(i) << " , step size dt = " << dt << endl;
+						break;
+					}
+				}
+			} else {
+				cerr << "Spectra eigensolver did not converge. Using default dt = " << dt << endl;
+			}
 		}
-		else {
-			cout << "Could not find smallest eigenvalue. Using default dt = " << dt << endl;
-		}*/
-
-		// --- solve using matlab
-    	Engine* engine;
-
-        MatrixXd EV; // Eigenvectors of the laplacian (w. mass matrix)
-        MatrixXd ED; // Eigenvalues of the laplacian (w. mass matrix)
-
-        // Launch MATLAB
-        igl::matlab::mlinit(&engine);
-
-        // Send Laplacian matrix to matlab
-        igl::matlab::mlsetmatrix(&engine, "A", E2f);
-
-        // Send mass matrix to matlab
-        igl::matlab::mlsetmatrix(&engine, "B", M2f);
-
-        // Extract the first 5 eigenvectors
-        igl::matlab::mleval(&engine, "[EV,ED] = eigs(A,B,5,'smallestabs')");
-        // Turn eigenvalue diagonal matrix into a vector
-        igl::matlab::mleval(&engine, "ED=diag(ED)");
-
-        // Retrieve the result
-        igl::matlab::mlgetmatrix(&engine, "EV", EV);
-        igl::matlab::mlgetmatrix(&engine, "ED", ED);
-		// cout << "ED : " << ED << endl;
-
-        for (int i=0; i<ED.size(); ++i)
-        {
-	        if (ED(i,0) > 1e-10)
-	        {
-                dt = 1 / ED(i, 0);
-				// dt = 100.0 / ED(i, 0);
-                cout << "Smallest eigenvalue = " << ED(i, 0) << " , step size dt = " << dt << endl;
-                break;
-	        }
-        }
 	}
 
 	// --- Initialize Permutation matrices for joint opt of vf and vf_rotated

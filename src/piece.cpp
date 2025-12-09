@@ -188,8 +188,9 @@ MatrixXd Piece::get_guiding_directions()
             }
         }
     }
+    vector<int> passed_vis_piece;
     for (int he : start_halfedges)
-        QuadMesh::expand_cutting_from_he(he, VirtualCuts, vector<int>(), VirtualCuts.rows(), HE, HV, nextH, twinH, vertexDegree, boundaryVertices, false, true);
+        QuadMesh::expand_cutting_from_he(he, VirtualCuts, passed_vis_piece, VirtualCuts.rows(), HE, HV, nextH, twinH, vertexDegree, boundaryVertices, false, true);
     //cout << "VirtualCuts.sum() = " << VirtualCuts.sum() << endl;
 
 

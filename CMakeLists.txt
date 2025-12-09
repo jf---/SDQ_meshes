@@ -21,11 +21,18 @@ include(libigl)
 igl_include(glfw)
 igl_include(imgui)
 igl_include(opengl)
-igl_include(restricted matlab)
 igl_include(copyleft cgal)
 
-list(APPEND LIBRARIES igl::core igl::opengl igl::imgui  igl::glfw  igl_restricted::matlab igl_copyleft::cgal)
+list(APPEND LIBRARIES igl::core igl::opengl igl::imgui igl::glfw igl_copyleft::cgal)
 
+# --------- Spectra (header-only eigensolver, replaces MATLAB dependency)
+include(FetchContent)
+FetchContent_Declare(
+    spectra
+    GIT_REPOSITORY https://github.com/yixuan/spectra.git
+    GIT_TAG        v1.0.1
+)
+FetchContent_MakeAvailable(spectra)
 
 # --------- Directional library
 include(Directional)
@@ -40,6 +47,7 @@ include_directories(${CMAKE_SOURCE_DIR}/external/libhedra/include)
 include_directories( ${INCLUDE_DIRS} )
 add_executable(${PROJECT_NAME} ${SRCFILES} ${HDRFILES})
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${spectra_SOURCE_DIR}/include)
 
 #set_property(TARGET np3dp-v2 PROPERTY CXX_STANDARD 17) # needs to be after the 'add_exectuable' line, because that's where the TARGET is created
 set(CMAKE_CXX_LINK_FLAGS "-framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -framework Accelerate -framework GLUT ")

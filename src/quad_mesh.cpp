@@ -9,7 +9,9 @@
 #include <hedra/triangulate_mesh.h>
 #include <directional/polygonal_edge_topology.h>
 #include <igl/point_mesh_squared_distance.h>
-#include <igl/matlab/matlabinterface.h>
+#include <Spectra/SymGEigsShiftSolver.h>
+#include <Spectra/MatOp/SymShiftInvert.h>
+#include <Spectra/MatOp/SparseSymMatProd.h>
 #include <hedra/planarity.h>
 
 #include "partitioning.h"
@@ -1817,9 +1819,9 @@ void QuadMesh::smoothen(const directional::TriMesh& tri_mesh, bool with_smoothen
     int nV = V.rows();
 
     // --- find vertices on boundary and original boundary polyline
-    MatrixXd boundaryPolyline; VectorXi boundary_vis;
-    MeshHelpers::get_boundary_polyline_and_vertices(MatrixXd(), boundary_vis, V, T);
-    MeshHelpers::get_boundary_polyline_and_vertices(boundaryPolyline, VectorXi(), tri_mesh.V, tri_mesh.F); // get boundary polyline from original triangle mesh
+    MatrixXd boundaryPolyline, unused_polyline; VectorXi boundary_vis, unused_vis;
+    MeshHelpers::get_boundary_polyline_and_vertices(unused_polyline, boundary_vis, V, T);
+    MeshHelpers::get_boundary_polyline_and_vertices(boundaryPolyline, unused_vis, tri_mesh.V, tri_mesh.F); // get boundary polyline from original triangle mesh
 
     // --- get avg edge length
     double avg_e_len = 0.0;
@@ -1944,44 +1946,32 @@ void QuadMesh::smoothen(const directional::TriMesh& tri_mesh, bool with_smoothen
     	L = L * -1.0; 
         L_boundary = L_boundary * -1.0;
 
-        // --- find smallest positive eigenvalue using matlab
+        // --- find smallest positive eigenvalue using Spectra
         const auto get_step_size = [](const SparseMatrix<double>& M, const SparseMatrix<double>& L, double default_value)->double {
+            using OpType = Spectra::SymShiftInvert<double, Eigen::Sparse, Eigen::Sparse>;
+            using BOpType = Spectra::SparseSymMatProd<double>;
+            OpType op(L, M);
+            BOpType Bop(M);
 
-            Engine* engine;
+            constexpr int nev = 5;
+            constexpr int ncv = 15;
+            Spectra::SymGEigsShiftSolver<OpType, BOpType, Spectra::GEigsMode::ShiftInvert> solver(op, Bop, nev, ncv, 0.0);
 
-            MatrixXd EV; // Eigenvectors of the laplacian (w. mass matrix)
-            MatrixXd ED; // Eigenvalues of the laplacian (w. mass matrix)
+            solver.init();
+            solver.compute(Spectra::SortRule::LargestMagn);
 
-            // Launch MATLAB
-            igl::matlab::mlinit(&engine);
-
-            // Send Laplacian matrix to matlab
-            igl::matlab::mlsetmatrix(&engine, "L", L);
-
-            // Send mass matrix to matlab
-            igl::matlab::mlsetmatrix(&engine, "M", M);
-
-            // Extract the first 5 eigenvectors
-            igl::matlab::mleval(&engine, "[EV,ED] = eigs(L,M,5,'smallestabs')");
-            // Turn eigenvalue diagonal matrix into a vector
-            igl::matlab::mleval(&engine, "ED=diag(ED)");
-
-            // Retrieve the result
-            igl::matlab::mlgetmatrix(&engine, "EV", EV);
-            igl::matlab::mlgetmatrix(&engine, "ED", ED);
-
-            for (int i = 0; i < ED.rows(); ++i)
-            {
-                if (ED(i, 0) > 1e-6)
-                {
-                    return 0.001 / ED(i, 0);
+            if (solver.info() == Spectra::CompInfo::Successful) {
+                Eigen::VectorXd evalues = solver.eigenvalues();
+                for (int i = 0; i < evalues.size(); ++i) {
+                    if (evalues(i) > 1e-6) {
+                        return 0.001 / evalues(i);
+                    }
                 }
             }
-            return default_value; // just return default value
+            return default_value;
         };
 
         delta = get_step_size(M, L, delta);
-        // boundary_delta = get_step_size(Id, L_boundary, boundary_delta);
         cout << "Step sizes: delta = " << delta << ", boundary_delta = " << boundary_delta << endl;
 
         // return to original sign
@@ -2117,9 +2107,9 @@ void QuadMesh::smoothen_specific_quad_mesh(MatrixXd& V, const MatrixXi& F, const
     hedra::dcel(D, F, EV, EF, EFi, innerEdges, VH, EH, FH, HV, HE, HF, nextH, prevH, twinH);
 
     // --- find vertices on boundary and original boundary polyline
-    MatrixXd boundaryPolyline; VectorXi boundary_vis;
-    MeshHelpers::get_boundary_polyline_and_vertices(MatrixXd(), boundary_vis, V, T);
-    MeshHelpers::get_boundary_polyline_and_vertices(boundaryPolyline, VectorXi(), Triangle_V, Triangle_F); // get boundary polyline from original triangle mesh
+    MatrixXd boundaryPolyline, unused_polyline2; VectorXi boundary_vis, unused_vis2;
+    MeshHelpers::get_boundary_polyline_and_vertices(unused_polyline2, boundary_vis, V, T);
+    MeshHelpers::get_boundary_polyline_and_vertices(boundaryPolyline, unused_vis2, Triangle_V, Triangle_F); // get boundary polyline from original triangle mesh
 
     // --- get avg edge length
     double avg_e_len = 0.0;
@@ -2244,44 +2234,32 @@ void QuadMesh::smoothen_specific_quad_mesh(MatrixXd& V, const MatrixXi& F, const
     	L = L * -1.0; 
         L_boundary = L_boundary * -1.0;
 
-        // --- find smallest positive eigenvalue using matlab
+        // --- find smallest positive eigenvalue using Spectra
         const auto get_step_size = [](const SparseMatrix<double>& M, const SparseMatrix<double>& L, double default_value)->double {
+            using OpType = Spectra::SymShiftInvert<double, Eigen::Sparse, Eigen::Sparse>;
+            using BOpType = Spectra::SparseSymMatProd<double>;
+            OpType op(L, M);
+            BOpType Bop(M);
 
-            Engine* engine;
+            constexpr int nev = 5;
+            constexpr int ncv = 15;
+            Spectra::SymGEigsShiftSolver<OpType, BOpType, Spectra::GEigsMode::ShiftInvert> solver(op, Bop, nev, ncv, 0.0);
 
-            MatrixXd EV; // Eigenvectors of the laplacian (w. mass matrix)
-            MatrixXd ED; // Eigenvalues of the laplacian (w. mass matrix)
+            solver.init();
+            solver.compute(Spectra::SortRule::LargestMagn);
 
-            // Launch MATLAB
-            igl::matlab::mlinit(&engine);
-
-            // Send Laplacian matrix to matlab
-            igl::matlab::mlsetmatrix(&engine, "L", L);
-
-            // Send mass matrix to matlab
-            igl::matlab::mlsetmatrix(&engine, "M", M);
-
-            // Extract the first 5 eigenvectors
-            igl::matlab::mleval(&engine, "[EV,ED] = eigs(L,M,5,'smallestabs')");
-            // Turn eigenvalue diagonal matrix into a vector
-            igl::matlab::mleval(&engine, "ED=diag(ED)");
-
-            // Retrieve the result
-            igl::matlab::mlgetmatrix(&engine, "EV", EV);
-            igl::matlab::mlgetmatrix(&engine, "ED", ED);
-
-            for (int i = 0; i < ED.rows(); ++i)
-            {
-                if (ED(i, 0) > 1e-6)
-                {
-                    return 0.001 / ED(i, 0);
+            if (solver.info() == Spectra::CompInfo::Successful) {
+                Eigen::VectorXd evalues = solver.eigenvalues();
+                for (int i = 0; i < evalues.size(); ++i) {
+                    if (evalues(i) > 1e-6) {
+                        return 0.001 / evalues(i);
+                    }
                 }
             }
-            return default_value; // just return default value
+            return default_value;
         };
 
         delta = get_step_size(M, L, delta);
-        // boundary_delta = get_step_size(Id, L_boundary, boundary_delta);
         cout << "Step sizes: delta = " << delta << ", boundary_delta = " << boundary_delta << endl;
 
         // return to original sign
