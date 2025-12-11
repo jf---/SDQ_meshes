@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "__split_buffer": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "vector": "cpp",
+        "__availability": "cpp",
+        "__config": "cpp",
+        "chrono": "cpp",
+        "locale": "cpp",
+        "memory": "cpp",
+        "regex": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "*.ipp": "cpp",
+        "*.inc": "cpp",
+        "*.tcc": "cpp",
+        "*.xpm": "cpp"
+    }
+}
